@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=0.9">
+    <title>Shortest Path Algorithm Demonstration</title>
+    <link rel="stylesheet" href="static/styles.css">
+</head>
+
+<body>
+    <div class="main">
+        <div id="graph-container" class="graph-visualization"></div>
+        <div class="control-panel">
+            <div class="control-group">
+                <div class="control-item">
+                    <label for="graphSelect">Graph</label>
+                    <select id="graphSelect">
+                        <option value="Random">Random</option>
+                        <option value="Tree">Tree</option>
+                        <option value="Comparison">Comparison</option>
+                        <option value="Admissibility">Admissibility</option>
+                        <option value="Extra">Extra</option>
+                    </select>
+                </div>
+
+                <div class="control-item">
+                    <label for="startNode">Start Node</label>
+                    <input type="number" id="startNode">
+                </div>
+
+                <div class="control-item">
+                    <label for="finishNode">Finish Node</label>
+                    <input type="number" id="finishNode">
+                </div>
+
+                <div class="control-item">
+                    <button id="setGraph" class="normal-button" onclick="setGraph()">Set Graph</button>
+                    <button id="changeEnds" class="normal-button" onclick="changeEnds()">Change Ends</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-item">
+                    <label for="algorithmSelect">Algorithm</label>
+                    <select id="algorithmSelect">
+                        <option value="Dijkstra">Dijkstra</option>
+                        <option value="Greedy">Greedy</option>
+                        <option value="A*">A*</option>
+                    </select>
+                </div>
+
+                <div class="control-item">
+                    <label for="heuristicSelect">Heuristic Function</label>
+                    <select id="heuristicSelect">
+                        <option value="Euclidean">Euclidean</option>
+                        <option value="Manhattan">Manhattan</option>
+                    </select>
+                </div>
+
+                <div class="control-item">
+                    <label for="nodeToExpand">Node to Expand</label>
+                    <input type="number" id="nodeToExpand">
+                </div>
+
+                <div class="control-item">
+                    <button id="nextStep" class="prominent-button" onclick="nextStep()">Next Step</button>
+                    <button id="resetGraph" class="normal-button" onclick="resetGraph()">Reset</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-item">
+                    <button id="nodeID" class="normal-button" onclick="changeView('nodeID')">Node ID</button>
+                    <button id="evaluation" class="normal-button" onclick="changeView('evaluation')">Evaluation</button>
+                </div>
+                <div class="control-item">
+                    <button id="saveGraph" class="normal-button" onclick="saveGraph()">Save Graph</button>
+                    <button id="loadGraph" class="normal-button" onclick="loadGraph()">Load Graph</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        var graph = null;
+        let disabled = false;
+        document.addEventListener('DOMContentLoaded', () => {
+            setGraph()
+        });
+
+        function setGraph() {
+            if (disabled) return;
+            disabled = true;
+            const button = document.getElementById('setGraph');
+            const buttonDescription = button.innerHTML;
+            button.innerHTML = '<div class="normal-spinner"></div>';
+
+            const graphSelect = document.getElementById("graphSelect").value;
+            const data = {
+                graphSelect: graphSelect,
+            };
+            fetch("/setGraph", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(data)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    graph = data;
+                    updateGraph().then(() => {
+                        disabled = false;
+                        button.innerHTML = buttonDescription;
+                    });
+                });
+        }
+
+        function changeEnds() {
+            if (disabled) return;
+            disabled = true;
+            const button = document.getElementById('changeEnds');
+            const buttonDescription = button.innerHTML;
+            button.innerHTML = '<div class="normal-spinner"></div>';
+
+            if (parseInt(document.getElementById("startNode").value, 10).toString() in graph.nodes && parseInt(document.getElementById("finishNode").value, 10).toString() in graph.nodes && parseInt(document.getElementById("startNode").value, 10) != parseInt(document.getElementById("finishNode").value, 10)) {
+                graph.start = parseInt(document.getElementById("startNode").value, 10)
+                graph.finish = parseInt(document.getElementById("finishNode").value, 10)
+            }
+            fetch("/changeEnds", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(graph)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    graph = data;
+                    updateGraph().then(() => {
+                        disabled = false;
+                        button.innerHTML = buttonDescription;
+                    });
+                });
+        }
+
+        function updateGraph() {
+            return new Promise((resolve) => {
+                const imageContainer = document.getElementById('graph-container');
+                fetch('/updateGraph', {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(graph)
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        const img = imageContainer.querySelector('img');
+                        if (img) {
+                            img.src = `data:image/png;base64,${data.image}`;
+                        } else {
+                            const newImg = document.createElement('img');
+                            newImg.src = `data:image/png;base64,${data.image}`;
+                            imageContainer.appendChild(newImg);
+                        }
+                        resolve();
+                    })
+                document.getElementById('startNode').value = graph.start;
+                document.getElementById('finishNode').value = graph.finish;
+                document.getElementById('nodeToExpand').value = graph.node_to_expand;
+            });
+        }
+
+        function nextStep() {
+            if (graph === null || disabled) return;
+            disabled = true;
+            const button = document.getElementById('nextStep');
+            const buttonDescription = button.innerHTML;
+            button.innerHTML = '<div class="prominent-spinner"></div>';
+
+            graph.algorithm = document.getElementById('algorithmSelect').value;
+            graph.heuristic = document.getElementById('heuristicSelect').value;
+            if ((graph.started && (parseInt(document.getElementById('nodeToExpand').value, 10).toString() in graph.fringe)) || ((!graph.started) && (parseInt(document.getElementById('nodeToExpand').value, 10).toString() === graph.start))) {
+                graph.node_to_expand = parseInt(document.getElementById('nodeToExpand').value, 10)
+            }
+            fetch('/nextStep', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(graph)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    graph = data;
+                    updateGraph().then(() => {
+                        disabled = false;
+                        button.innerHTML = buttonDescription;
+                    });
+                });
+        }
+
+        function resetGraph() {
+            if (disabled) return;
+            disabled = true;
+            const button = document.getElementById('resetGraph');
+            const buttonDescription = button.innerHTML;
+            button.innerHTML = '<div class="normal-spinner"></div>';
+
+            fetch('/resetGraph', {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(graph)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    graph = data;
+                    updateGraph().then(() => {
+                        disabled = false;
+                        button.innerHTML = buttonDescription;
+                    });
+                });
+        }
+
+        function changeView(viewMode) {
+            if (disabled) return;
+            disabled = true;
+            const button = document.getElementById(viewMode);
+            const buttonDescription = button.innerHTML;
+            button.innerHTML = '<div class="normal-spinner"></div>';
+
+            graph.view_node_id = (viewMode === 'nodeID');
+            fetch('/changeView', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(graph)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    graph = data;
+                    updateGraph().then(() => {
+                        disabled = false;
+                        button.innerHTML = buttonDescription;
+                    });
+                });
+        }
+
+        async function saveGraph() {
+            if (disabled) return;
+            disabled = true;
+            const button = document.getElementById('saveGraph');
+            const buttonDescription = button.innerHTML;
+            button.innerHTML = '<div class="normal-spinner"></div>';
+
+            const md5Hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(graph)))
+                .then(hashBuffer => Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join(''))
+                .then(hashHex => hashHex.slice(0, 8));
+            const formattedJSON = JSON.stringify(graph, null, 2);
+            const dataUri = "data:text/json;charset=utf-8," + encodeURIComponent(formattedJSON);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = dataUri;
+            downloadLink.download = `${md5Hash}.json`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+
+            disabled = false;
+            button.innerHTML = buttonDescription;
+        }
+
+        function loadGraph() {
+            const fileInput = document.createElement("input");
+            fileInput.type = "file";
+            fileInput.accept = ".json";
+            fileInput.style.display = "none";
+            fileInput.addEventListener("change", (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        try {
+                            const graphData = JSON.parse(e.target.result);
+                            graph = graphData;
+                            updateGraph();
+                        } catch (error) {
+                            alert(error);
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            });
+            fileInput.click()
+        }
+    </script>
+</body>
+
+</html>
